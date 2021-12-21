@@ -1,5 +1,17 @@
+#include <ESP32Encoder.h>
 #include <math.h>
-#include 
+#include <analogWrite.h>
+
+// name the motor control pins - replace the ** with your pin number
+#define PWMa 14
+#define PWMb 27
+#define PWMc 26
+#define PWMd 25
+
+ESP32Encoder encoder;
+float distance;
+float number;
+volatile int encoderValue = 0;
 void setup() { 
   Serial.begin(115200); 
    pinMode(PWMa, OUTPUT); 
