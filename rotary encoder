@@ -1,0 +1,37 @@
+#include <math.h>
+#include 
+void setup() { 
+  Serial.begin(115200); 
+   pinMode(PWMa, OUTPUT); 
+  pinMode(PWMb, OUTPUT); 
+  pinMode(PWMc, OUTPUT); 
+  pinMode(PWMd, OUTPUT); 
+  
+  // Enable the weak pull up resistors 
+  ESP32Encoder::useInternalWeakPullResistors = UP; 
+  // use pin 32 and 33 for the first encoder 
+  encoder.attachHalfQuad(32, 33); 
+  // set starting count value after attaching 
+  encoder.setCount(0); 
+  // clear the encoder's raw count and set the tracked count to zero 
+  Serial.println("Encoder Start = " + String((int32_t)encoder.getCount())); 
+} 
+void loop() { 
+delay(5000); 
+  number = encoder.getCount();  // Loop and read the count 
+  distance = (number * 0.06 *PI)/6 //Calculate distance travelled 
+  Serial.println(distance); // Print the distance travelled to serial monitor. 
+  Serial.println("M"); 
+} 
+void motorsForward() { 
+  analogWrite(PWMa, 0); 
+  analogWrite(PWMb, 255); 
+  analogWrite(PWMc, 255); 
+  analogWrite(PWMd, 0); 
+} 
+void motorsStop() { 
+  analogWrite(PWMa, 0); 
+  analogWrite(PWMb, 0); 
+  analogWrite(PWMc, 0); 
+  analogWrite(PWMd, 0); 
+} 
