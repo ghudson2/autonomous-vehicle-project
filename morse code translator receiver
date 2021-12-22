@@ -1,0 +1,141 @@
+#define SLAVE_ADDRESS 0x08
+#include <Wire.h> // include Wire library
+
+String morse;
+String message_in, message_out;
+char message[6];
+
+void setup() {
+Wire.begin(0x08); // join i2c bus with address 8
+Wire.onReceive(receiveEvent); // create a receive event
+Wire.onRequest(requestEvent);
+Serial.begin(9600); // start serial to visualise data
+// received via serial monitor in the IDE
+}
+
+
+void receiveEvent() {
+message_in = "";
+while (Wire.available()) { // loop whilst bus is busy
+char c = Wire.read(); // receive data byte by byte
+message_in += c;
+Serial.print(c);
+}
+}
+void loop() {
+}
+void requestEvent(){
+if (message_in == "..-."){
+  Serial.print("f");
+message_out = "recieved";
+}
+if (message_in == ".-"){
+  Serial.print("a");
+  message_out = "recieved";
+}
+if (message_in == "..."){
+  Serial.print("s");
+  message_out = "recieved";
+}
+if (message_in == "-"){
+  Serial.print("t");
+message_out = "recieved";   
+}
+if (message_in == "-..."){
+  Serial.print("b");
+message_out = "recieved";
+}
+if (message_in == "-.-."){
+  Serial.print("c");
+  message_out = "recieved";
+}
+if (message_in == "-.."){
+  Serial.print("d");
+  message_out = "recieved";
+}
+if (message_in == "."){
+  Serial.print("e");
+message_out = "recieved";   
+}
+if (message_in == "--."){
+  Serial.print("g");
+message_out = "recieved";
+}
+if (message_in == "...."){
+  Serial.print("h");
+  message_out = "recieved";
+}
+if (message_in == ".."){
+  Serial.print("i");
+  message_out = "recieved";
+}
+if (message_in == ".---"){
+  Serial.print("j");
+message_out = "recieved";   
+}
+if (message_in == "-.-"){
+  Serial.print("k");
+message_out = "recieved";
+}
+if (message_in == ".-.."){
+  Serial.print("l");
+  message_out = "recieved";
+}
+if (message_in == "--"){
+  Serial.print("m");
+  message_out = "recieved";
+}
+if (message_in == "-."){
+  Serial.print("n");
+message_out = "recieved";   
+}
+if (message_in == "---"){
+  Serial.print("o");
+message_out = "recieved";
+}
+if (message_in == ".--."){
+  Serial.print("p");
+  message_out = "recieved";
+}
+if (message_in == "--.-"){
+  Serial.print("q");
+  message_out = "recieved";
+}
+if (message_in == ".-."){
+  Serial.print("r");
+message_out = "recieved";   
+}
+if (message_in == "..-"){
+  Serial.print("u");
+message_out = "recieved";
+}
+if (message_in == "...-"){
+  Serial.print("v");
+  message_out = "recieved";
+}
+if (message_in == ".--"){
+  Serial.print("w");
+  message_out = "recieved";
+}
+if (message_in == "-..-"){
+  Serial.print("x");
+message_out = "recieved";   
+}
+if (message_in == "-.--"){
+  Serial.print("y");
+message_out = "recieved";
+}
+if (message_in == "--.."){
+  Serial.print("z");
+  message_out = "recieved";
+}
+if (message_in == "/"){
+  Serial.print("\n");
+  message_out = "recieved";
+}
+int buffer = message_out.length();
+message_out.toCharArray(message, buffer + 1);
+//Serial.println(message);
+Wire.write(message);
+
+}
