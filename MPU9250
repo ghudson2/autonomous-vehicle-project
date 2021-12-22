@@ -39,7 +39,7 @@ void loop() {
     aSqrt = mySensor.accelSqrt();
     Serial.println("accelX: " + String(aX));
     Serial.println("accelY: " + String(aY));
-    Serial.println("accelZ: " + String(aZ)) 
+    Serial.println("accelZ: " + String(aZ));
     Serial.println("accelSqrt: " + String(aSqrt));
     } else {
     Serial.println("Cannot read accel values");
