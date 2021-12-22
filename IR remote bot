@@ -1,0 +1,98 @@
+#include <analogWrite.h>
+#include <IRremote.h>
+#include <analogWrite.h>
+
+#define RECEIVER_PIN 15
+#define PWMa 14
+#define PWMb 27
+#define PWMc 26
+#define PWMd 25
+
+const int trigPin = 35;
+const int echoPin = 34;
+
+//define sound speed in cm/uS
+#define SOUND_SPEED 0.034
+
+IRrecv receiver(RECEIVER_PIN);
+decode_results results;
+
+long duration;
+float distanceCm;
+
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+
+  pinMode(PWMa, OUTPUT);
+  pinMode(PWMb, OUTPUT);
+  pinMode(PWMc, OUTPUT);
+  pinMode(PWMd, OUTPUT);
+  receiver.enableIRIn();
+
+  pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
+  pinMode(echoPin, INPUT);
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  duration = pulseIn(echoPin, HIGH);
+  
+  // Calculate the distance
+  distanceCm = duration * SOUND_SPEED/2;
+
+  if (distanceCm==15){
+      analogWrite(PWMa, 0);
+      analogWrite(PWMb, 0);
+      analogWrite(PWMc, 0);
+      analogWrite(PWMd, 0);
+  }
+  if (receiver.decode(&results)) {
+    Serial.println(results.value, HEX);
+
+  //backwards
+    if (results.value == 0xFF18E7) {
+      analogWrite(PWMa, 0);
+      analogWrite(PWMb, 255);
+      analogWrite(PWMc, 255);
+      analogWrite(PWMd, 0);
+    }
+    //forwards
+    if (results.value == 0xFF4AB5) {
+      analogWrite(PWMa, 255);
+      analogWrite(PWMb, 0);
+      analogWrite(PWMc, 0);
+      analogWrite(PWMd, 255);
+    }
+    //stop
+    if (results.value == 0xFF38C7) {
+      analogWrite(PWMa, 0);
+      analogWrite(PWMb, 0);
+      analogWrite(PWMc, 0);
+      analogWrite(PWMd, 0);
+    }
+ //clockwise//left
+        if (results.value == 0xFF10EF) {
+      analogWrite(PWMa, 255);
+      analogWrite(PWMb, 0);
+      analogWrite(PWMc, 255);
+      analogWrite(PWMd, 0);
+    }
+    //anticlockwise//right
+        if (results.value == 0xFF5AA5) {
+      analogWrite(PWMa, 0);
+      analogWrite(PWMb, 255);
+      analogWrite(PWMc, 0);
+      analogWrite(PWMd, 255);
+    }
+    receiver.resume();
+  }  }
