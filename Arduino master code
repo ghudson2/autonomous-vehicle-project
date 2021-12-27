@@ -2,11 +2,27 @@
 
 imu data- forward for 1 second 
         - turn 180 degrees, send these values until angle 180 then motors stop
+      //clockwise- to the left
       analogWrite(PWMa, 255);
       analogWrite(PWMb, 0);
       analogWrite(PWMc, 255);
       analogWrite(PWMd, 0);
       
 sr04 data- reverse until 10 cm away 
-         - send 
-send 
+         - send to reverse when data from sr04 = 10cm send motors stop
+      analogWrite(PWMa, 0);
+      analogWrite(PWMb, 255);
+      analogWrite(PWMc, 255);
+      analogWrite(PWMd, 0);
+imu data- turn 90 degrees clockwise 
+        -send clockwise until 90 degrees reached 
+      analogWrite(PWMa, 255);
+      analogWrite(PWMb, 0);
+      analogWrite(PWMc, 255);
+      analogWrite(PWMd, 0);
+sr04 data- reverse unitl 10cm away
+        - send reverse until 10cm then send motors stop 
+      analogWrite(PWMa, 0);
+      analogWrite(PWMb, 255);
+      analogWrite(PWMc, 255);
+      analogWrite(PWMd, 0);
