@@ -99,6 +99,8 @@ void setup() {
 void loop() {
   encoderCount = encoder.getCount();
   WireSlave.update();
+  
+  while (runRightMotor = 
 }
 
 
@@ -134,7 +136,8 @@ void receiveEvent(int howMany)
   Serial.print("\t");
   Serial.print("Right Motor: ");
   Serial.println(rightMotor_speed);
-
+  
+ 
   runLeftMotor(leftMotor_speed);
   runRightMotor(rightMotor_speed);
 }
