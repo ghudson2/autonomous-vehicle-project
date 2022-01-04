@@ -54,6 +54,7 @@ void loop() {
     aX = mySensor.accelX();              
     aY = mySensor.accelY();
     aZ = mySensor.accelZ();
+    Serial.println("accelZ: " + String(aZ));
 //gyro
  if (mySensor.gyroUpdate() == 0) {
     gX = mySensor.gyroX();
