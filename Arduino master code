@@ -24,7 +24,7 @@ void setup() {
   mySensor.beginAccel();
   mySensor.beginGyro();
   mySensor.beginMag();
-
+}
 void loop() {
 //ultrasonic 
   // Clears the trigPin condition
@@ -76,7 +76,7 @@ void loop() {
   delay(40);
 }
 }
-
+}
 imu data- forward for 1 second 
         - turn 180 degrees, send these values until angle 180 then motors stop
       //clockwise- to the left
