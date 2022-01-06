@@ -19,15 +19,15 @@
 #include <WireSlave.h>
 
 // IO21 & IO22 are the default I2C pins on the ESP32
-#define SDA_PIN 21
-#define SCL_PIN 22
+#define SDA_PIN 32
+#define SCL_PIN 33
 #define I2C_SLAVE_ADDR 0x04 // 4 in hexadecimal
 
 void receiveEvent(int howMany);
 void requestEvent();
 
 // encoder variables
-ESP32Encoder encoder;
+//ESP32Encoder encoder;
 
 int encoderCount;
 
@@ -52,7 +52,7 @@ int rightMotor_speed = 0;
 
 void setup() {
   Serial.begin(115200);
-
+  
   bool success = WireSlave.begin(SDA_PIN, SCL_PIN, I2C_SLAVE_ADDR);
   if (!success) {
       Serial.println("I2C Slave Init Failed");
@@ -63,15 +63,15 @@ void setup() {
   WireSlave.onRequest(requestEvent);
 
   // enable the weak pull up resistors
-  ESP32Encoder::useInternalWeakPullResistors=UP;
+  //ESP32Encoder::useInternalWeakPullResistors=UP;
 
   // either change your connections to IO32 and IO33 or change the pin numbers in the code
   // to change whether the count increments or decrements when turning in a particular direction, 
   // switch the order of the pin numbers in attachHalQuad()
-  encoder.attachHalfQuad(32, 33);                                                                 // <--------------
+  //encoder.attachHalfQuad(32, 33);                                                                 // <--------------
 
   // set starting count value after attaching
-  encoder.setCount(0);
+  //encoder.setCount(0);
 
   // print statement used for testing
   //Serial.println("Encoder Start = " + String((int32_t)encoder.getCount()));
@@ -97,10 +97,10 @@ void setup() {
 
 
 void loop() {
-  encoderCount = encoder.getCount();
+  //encoderCount = encoder.getCount();
   WireSlave.update();
-  
-  while (runRightMotor = 
+  //Serial.print(encoderCount);
+
 }
 
 
@@ -136,8 +136,7 @@ void receiveEvent(int howMany)
   Serial.print("\t");
   Serial.print("Right Motor: ");
   Serial.println(rightMotor_speed);
-  
- 
+
   runLeftMotor(leftMotor_speed);
   runRightMotor(rightMotor_speed);
 }
