@@ -9,19 +9,21 @@
 #define echoPin 2 // attach pin D2 Arduino to pin Echo of HC-SR04
 #define trigPin 3 //attach pin D3 Arduino to pin Trig of HC-SR04
 long duration; // variable for the duration of sound wave travel
-int distance;
+int j = 1;
 MPU9250_asukiaaa mySensor;
-float aX, aY, aZ, aSqrt, gX, gY, gZ, delta_angle, gyroZwithoffset, current_angle;
+float aX, aY, aZ, aSqrt, gX, gY, gZ, delta_angle, gyroZwithoffset, current_angle, distance, current_angle1;
 long current_time, previous_time, delta_time;
 void setup()
 {
   Serial.begin(115200);
   Wire.begin();   // join i2c bus (address optional for master)
   pinMode(trigPin, OUTPUT); // Sets the trigPin as an OUTPUT
-  pinMode(echoPin, INPUT); // Sets the echoPin as an 
+  pinMode(echoPin, INPUT); // Sets the echoPin as an
   mySensor.beginAccel();
   mySensor.beginGyro();
   mySensor.beginMag();
+
+
 }
 
 // the minimum and maximum values here are determined by the amount of bits used by the chosen variable type
@@ -30,13 +32,93 @@ void setup()
 int x;
 int y;
 
+
 void loop()
-{
-  delay(4000);
-  motorsForward();
-  delay(1000);
-  
-  //ultrasonic 
+{ delay(3000);
+  while (j = 1) {
+
+    updateDistance();
+    updateMPU();
+    motorsForward();
+    delay(1000);
+    turnClockwise180();
+    delay(1000);
+    motorsBackwards();
+    delay(1000);
+    turnClockwise90();
+    delay(1000);
+    motorsBackwards();
+
+    WirePacker packer;
+    /* depending on the mirocontroller, the int variable is stored as 32-bits or 16-bits
+       if you want to increase the value range, first use a suitable variable type and then modify the code below
+       for example; if the variable used to store x and y is 32-bits and you want to use signed values between -2^31 and (2^31)-1
+       uncomment the four lines below relating to bits 32-25 and 24-17 for x and y
+       for my microcontroller, int is 32-bits hence x and y are AND operated with a 32 bit hexadecimal number - change this if needed
+    */
+    //packer.write((byte)((x & 0xFF000000) >> 24)); // bits 32 to 25 of x
+    //packer.write((byte)((x & 0x00FF0000) >> 16)); // bits 24 to 17 of x
+    packer.write((byte)((x & 0x0000FF00) >> 8));    // first byte of x, containing bits 16 to 9
+    packer.write((byte)(x & 0x000000FF));           // second byte of x, containing the 8 LSB - bits 8 to 1
+    //packer.write((byte)((y & 0xFF000000) >> 24)); // bits 32 to 25 of y
+    //packer.write((byte)((y & 0x00FF0000) >> 16)); // bits 24 to 17 of y
+    packer.write((byte)((y & 0x0000FF00) >> 8));    // first byte of y, containing bits 16 to 9
+    packer.write((byte)(y & 0x000000FF));           // second byte of y, containing the 8 LSB - bits 8 to 1
+    packer.end();
+
+    Wire.beginTransmission(I2C_SLAVE_ADDR); // transmit to device #4
+    while (packer.available()) {            // write every packet byte
+      Wire.write(packer.read());
+    }
+    Wire.endTransmission();                 // stop transmitting
+    delay(100);
+  }
+}
+
+void motorsForward() {
+  x = 255;
+  y = 255;
+}
+void motorsBackwards() {
+  updateDistance();
+  if (distance<=10){
+  x = -255;
+  y = -255;
+}
+}
+
+void turnClockwise180() {
+  updateMPU();
+  if (90 <= current_angle1 && current_angle1 <= 95) {
+    x = 0;
+    y = 0;
+  }
+  else {
+    x = 255;
+    y = -255;
+  }
+}
+
+void turnClockwise90() {
+  updateMPU();
+  if (90 <= current_angle1 && current_angle1 <= 95) {
+    x = 0;
+    y = 0;
+  }
+  else {
+    x = 255;
+    y = -255;
+  }
+}
+void motorsBackwards() {
+  updateDistance();
+  if (distance<=10){
+  x = -255;
+  y = -255;
+}
+}
+void updateDistance() {
+  //ultrasonic
   // Clears the trigPin condition
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
@@ -50,99 +132,28 @@ void loop()
   distance = duration * 0.034 / 2; // Speed of sound wave divided by 2 (go and back)
   // Displays the distance on the Serial Monito
   Serial.println(distance);
+}
+void updateMPU() {
 
-  if (distance<=10){
-    motorsStop();
-    delay(3000);
-  }
-    uint8_t sensorId;
+  uint8_t sensorId;
   if (mySensor.readId(&sensorId) == 0) {
-//    Serial.println("sensorId: " + String(sensorId));
+    //    Serial.println("sensorId: " + String(sensorId));
   } else {
     Serial.println("Cannot read sensorId");
   }
-   if (mySensor.gyroUpdate() == 0) {
+  if (mySensor.gyroUpdate() == 0) {
     gX = mySensor.gyroX();
-    
+
     gY = mySensor.gyroY();
     gZ = mySensor.gyroZ();
     gyroZwithoffset = gZ + 0.4879;
-    
+
     current_time = millis();
     delta_time = current_time - previous_time ;
     delta_angle = gyroZwithoffset * delta_time;
     current_angle = current_angle + delta_angle;
     previous_time = millis();
-    y = current_angle/1000;
-    Serial.println(y);
-   }
-  
-  WirePacker packer;
-  /* depending on the mirocontroller, the int variable is stored as 32-bits or 16-bits
-     if you want to increase the value range, first use a suitable variable type and then modify the code below
-     for example; if the variable used to store x and y is 32-bits and you want to use signed values between -2^31 and (2^31)-1
-     uncomment the four lines below relating to bits 32-25 and 24-17 for x and y
-     for my microcontroller, int is 32-bits hence x and y are AND operated with a 32 bit hexadecimal number - change this if needed
-  */
-  //packer.write((byte)((x & 0xFF000000) >> 24)); // bits 32 to 25 of x
-  //packer.write((byte)((x & 0x00FF0000) >> 16)); // bits 24 to 17 of x
-  packer.write((byte)((x & 0x0000FF00) >> 8));    // first byte of x, containing bits 16 to 9
-  packer.write((byte)(x & 0x000000FF));           // second byte of x, containing the 8 LSB - bits 8 to 1
-  //packer.write((byte)((y & 0xFF000000) >> 24)); // bits 32 to 25 of y
-  //packer.write((byte)((y & 0x00FF0000) >> 16)); // bits 24 to 17 of y
-  packer.write((byte)((y & 0x0000FF00) >> 8));    // first byte of y, containing bits 16 to 9
-  packer.write((byte)(y & 0x000000FF));           // second byte of y, containing the 8 LSB - bits 8 to 1
-  packer.end();
-  
-  Wire.beginTransmission(I2C_SLAVE_ADDR); // transmit to device #4
-  while (packer.available()) {            // write every packet byte
-    Wire.write(packer.read());
+    current_angle1 = current_angle / 1000;
+    Serial.println(current_angle1);
   }
-  Wire.endTransmission();                 // stop transmitting
-  delay(100);
 }
-
-void motorsForward(){
-  x =255;
-  y =255;
-}
-void motorsBackwards(){
-  x=-255;
-  y=-255;
-}
-void turnClockwise(){
-  x=255;
-  y=-255;
-}
-void motorsStop(){
-  x=0;
-  y=0;
-}
-
-
-imu data- forward for 1 second 
-        - turn 180 degrees, send these values until angle 180 then motors stop
-      //clockwise- to the left
-      analogWrite(PWMa, 255);
-      analogWrite(PWMb, 0);
-      analogWrite(PWMc, 255);
-      analogWrite(PWMd, 0);
-      
-sr04 data- reverse until 10 cm away 
-         - send to reverse when data from sr04 = 10cm send motors stop
-      analogWrite(PWMa, 0);
-      analogWrite(PWMb, 255);
-      analogWrite(PWMc, 255);
-      analogWrite(PWMd, 0);
-imu data- turn 90 degrees clockwise 
-        -send clockwise until 90 degrees reached 
-      analogWrite(PWMa, 255);
-      analogWrite(PWMb, 0);
-      analogWrite(PWMc, 255);
-      analogWrite(PWMd, 0);
-sr04 data- reverse unitl 10cm away
-        - send reverse until 10cm then send motors stop 
-      analogWrite(PWMa, 0);
-      analogWrite(PWMb, 255);
-      analogWrite(PWMc, 255);
-      analogWrite(PWMd, 0);
