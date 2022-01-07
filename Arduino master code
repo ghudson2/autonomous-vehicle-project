@@ -41,12 +41,11 @@ void loop()
     updateMPU();
     motorsForward();
     delay(1000);
+    motorsStop();
+    delay(5000);
     turnClockwise180();
-    delay(1000);
     motorsBackwards();
-    delay(1000);
     turnClockwise90();
-    delay(1000);
     motorsBackwards();
 
     WirePacker packer;
@@ -112,10 +111,19 @@ void turnClockwise90() {
 }
 void motorsBackwards() {
   updateDistance();
-  if (distance<=10){
+  if (distance>=10){
   x = -255;
   y = -255;
 }
+else {
+  x=0;
+  y=0;
+}
+}
+
+void motorsStop() {
+  x=0;
+  y=0;
 }
 void updateDistance() {
   //ultrasonic
