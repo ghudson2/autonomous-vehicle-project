@@ -78,17 +78,10 @@ void motorsForward() {
   x = 255;
   y = 255;
 }
-void motorsBackwards() {
-  updateDistance();
-  if (distance<=10){
-  x = -255;
-  y = -255;
-}
-}
 
 void turnClockwise180() {
   updateMPU();
-  if (90 <= current_angle1 && current_angle1 <= 95) {
+  if (180 <= current_angle1 && current_angle1 <= 185) {
     x = 0;
     y = 0;
   }
@@ -100,7 +93,7 @@ void turnClockwise180() {
 
 void turnClockwise90() {
   updateMPU();
-  if (90 <= current_angle1 && current_angle1 <= 95) {
+  if (270 <= current_angle1 && current_angle1 <= 275) {
     x = 0;
     y = 0;
   }
@@ -120,7 +113,6 @@ else {
   y=0;
 }
 }
-
 void motorsStop() {
   x=0;
   y=0;
