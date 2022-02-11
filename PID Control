@@ -1,0 +1,93 @@
+#include <Wire.h>
+#include <WirePacker.h>
+#include <Arduino.h>
+#define I2C_SLAVE_ADDR 0x04
+
+int left_motor_speed, right_motor_speed;
+
+int sensor[6] = {0, 0, 0, 0, 0, 0};
+float Kp = 30;
+float Ki = 0.25;
+float Kd = 0;
+float P = 0, I = 0, D = 0, PID_value = 0;
+float error = 0, previous_error = 0;
+int initial_motor_speed = 150;
+int max_speed = 255;
+float numerator, denominator;
+
+void setup() {
+  Serial.begin(9600);
+  Wire.begin();
+
+}
+
+void loop() {
+  read_sensor_values();
+  calculateError();
+  calculate_PID();
+  motor_control();
+
+}
+
+
+void read_sensor_values() {
+  sensor[0] = analogRead(A6);
+  sensor[1] = analogRead(A0);
+  sensor[2] = analogRead(A7);
+  sensor[3] = analogRead(A2);
+  sensor[4] = analogRead(A1);
+  sensor[5] = analogRead(A3);
+
+  //  Serial.println(analogRead(A6));
+  //  Serial.println(analogRead(A0));
+  //  Serial.println(analogRead(A7));
+  //  Serial.println(analogRead(A2));
+  //  Serial.println(analogRead(A1));
+  //  Serial.println(analogRead(A3));
+}
+
+void calculateError() {
+  numerator = (5  * (sensor[0] - sensor[5])) + (3 * (sensor[1] - sensor[4])) + (1 * (sensor[2] - sensor[3]));
+  denominator = (sensor[0] + sensor[1] + sensor[2] + sensor[3] + sensor[4] + sensor[5]);
+  error = numerator / denominator;
+  Serial.println(error);
+}
+
+
+void calculate_PID() {
+  P = error;
+  I = I + P;
+  D = error - previous_error;
+
+  PID_value = (Kp * P) + (Ki * I) + (Kd * D);
+
+  previous_error = error;
+  Serial.println(PID_value);
+}
+
+void motor_control() {
+  int right_motor_speed = initial_motor_speed + PID_value;
+  int left_motor_speed = initial_motor_speed - PID_value;
+  constrain(left_motor_speed, 0, max_speed);
+  constrain(right_motor_speed, 0, max_speed);
+
+  WirePacker packer;
+  packer.write((byte)((right_motor_speed & 0x0000FF00) >> 8));    // first byte of x, containing bits 16 to 9
+  packer.write((byte)(right_motor_speed & 0x000000FF));           // second byte of x, containing the 8 LSB - bits 8 to 1
+  packer.write((byte)((left_motor_speed & 0x0000FF00) >> 8));    // first byte of y, containing bits 16 to 9
+  packer.write((byte)(left_motor_speed & 0x000000FF));           // second byte of y, containing the 8 LSB - bits 8 to 1
+  packer.end();
+
+  Wire.beginTransmission(I2C_SLAVE_ADDR); // transmit to device #4
+  while (packer.available()) {            // write every packet byte
+    Wire.write(packer.read());
+  }
+  Wire.endTransmission();                 // stop transmitting
+  delay(100);
+
+  Serial.print ("right = ");
+  Serial.print(right_motor_speed);
+  Serial.print("\t");
+  Serial.print("left = ");
+  Serial.println(left_motor_speed);
+}
