@@ -1,0 +1,367 @@
+//***************************************//
+//* Session 2:                          *//
+//* EEEBot Template Code for the ESP32  *//
+//*                                     *//
+//* ESP32 Slave Code                    *//
+//*                                     *//
+//* UoN 2021 - ND                       *//
+//***************************************//
+
+// read through the accompanying readme file - only then ask for help if you are still unsure
+
+// DO NOT modify or edit any of this code - for Session 2, the ESP32 code is provided for you
+// the only exception is modify the pin numbers for the motors (if the motors do not spin the correct way)
+
+// include libraries
+#include <ESP32Encoder.h>
+#include <Arduino.h>
+#include <Wire.h>
+#include <WireSlave.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <Wire.h>
+
+// IO21 & IO22 are the default I2C pins on the ESP32
+#define SDA_PIN 21
+#define SCL_PIN 22
+#define I2C_SLAVE_ADDR 0x04 // 4 in hexadecimal
+
+void receiveEvent(int howMany);
+void requestEvent();
+
+// encoder variables
+ESP32Encoder encoder;
+
+int encoderCount;
+// define the motor control pins
+#define PWMa 14
+#define PWMb 27
+#define PWMc 26
+#define PWMd 25
+
+#define ledPin 12
+
+const char* ssid = "georgeHPI";                      //CHANGE ME
+const char* password = "password";              //CHANGE ME
+
+// Add your MQTT Broker IP address, example:
+//const char* mqtt_server = "192.168.1.144";
+const char* mqtt_server = "192.168.137.146";          //CHANGE ME
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+long lastMsg = 0;
+char msg[50];
+int value = 0;
+// set up of PWM properties
+const int freq = 30000;
+const int resolution = 8;
+const int pwmChannela = 0;
+const int pwmChannelb = 1;
+const int pwmChannelc = 2;
+const int pwmChanneld = 3;
+
+// set up of the motor speeds, set to 0 by default
+int leftMotor_speed = 0;
+int rightMotor_speed = 0;
+float Kp = 0;
+float Ki = 0;
+float Kd = 0;
+float P = 0, I = 0, D = 0, PID_value = 0;
+float error = 0, previous_error = 0;
+int initial_motor_speed = 150;
+int max_speed = 255;
+float numerator, denominator;
+int LOMOS = 0, ROMOS = 0, FR = 0, FL = 0, LMOS = 0, RMOS = 0;
+
+
+void setup() {
+  Serial.begin(115200);
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+
+  bool success = WireSlave.begin(SDA_PIN, SCL_PIN, I2C_SLAVE_ADDR);
+  if (!success) {
+    Serial.println("I2C Slave Init Failed");
+    while (1) delay(100); // forever loop
+  }
+
+  WireSlave.onReceive(receiveEvent);
+  WireSlave.onRequest(requestEvent);
+
+  // enable the weak pull up resistors
+  ESP32Encoder::useInternalWeakPullResistors = UP;
+
+  // either change your connections to IO32 and IO33 or change the pin numbers in the code
+  // to change whether the count increments or decrements when turning in a particular direction,
+  // switch the order of the pin numbers in attachHalQuad()
+  encoder.attachHalfQuad(32, 33);                                                                 // <--------------
+
+  // set starting count value after attaching
+  encoder.setCount(0);
+
+  // print statement used for testing
+  //Serial.println("Encoder Start = " + String((int32_t)encoder.getCount()));
+
+  // configure LED PWM functionalitites
+  ledcSetup(pwmChannela, freq, resolution);
+  ledcSetup(pwmChannelb, freq, resolution);
+  ledcSetup(pwmChannelc, freq, resolution);
+  ledcSetup(pwmChanneld, freq, resolution);
+
+  // attach the channel to the GPIO to be controlled
+  ledcAttachPin(PWMa, pwmChannela);
+  ledcAttachPin(PWMb, pwmChannelb);
+  ledcAttachPin(PWMc, pwmChannelc);
+  ledcAttachPin(PWMd, pwmChanneld);
+
+  // configure the motor control pins as outputs
+  pinMode(PWMa, OUTPUT);
+  pinMode(PWMb, OUTPUT);
+  pinMode(PWMc, OUTPUT);
+  pinMode(PWMd, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+}
+
+void setup_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void callback(char* topic, byte* message, unsigned int length) {
+  Serial.print("Message arrived on topic: ");
+  Serial.print(topic);
+  Serial.print(". Message: ");
+  String messageTemp;
+
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)message[i]);
+    messageTemp += (char)message[i];
+  }
+  Serial.println();
+
+  // Add your subscribed topics here i.e. statements to control GPIOs with MQTT
+  // --
+  if (String(topic) == "esp32/LED") {
+    if (messageTemp == "true") {
+      digitalWrite(ledPin, HIGH);
+    }
+    else if (messageTemp == "false") {
+      digitalWrite(ledPin, LOW);
+    }
+  }
+  if (String(topic) == "esp32/kp") {
+    Kp = messageTemp.toFloat();
+  }
+  if (String(topic) == "esp32/ki") {
+    Ki = messageTemp.toFloat();
+  }
+  if (String(topic) == "esp32/kd") {
+    Kd = messageTemp.toFloat();
+  }
+}
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    if (client.connect("ESP32Client")) {
+      Serial.println("connected");
+
+      // Add your subscribe topics here
+      // --
+      client.subscribe("esp32/kp");
+      client.subscribe("esp32/ki");
+      client.subscribe("esp32/kd");
+      client.subscribe("esp32/LED");
+      // --
+
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(500);
+    }
+  }
+}
+
+void loop() {
+  encoderCount = encoder.getCount();
+  WireSlave.update();
+
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  long now = millis();
+  if (now - lastMsg > 5000) {
+    lastMsg = now;
+    char encoderString[8];
+    dtostrf(encoderCount, 1, 2, encoderString);
+    client.publish("esp32/encoder", encoderString);
+  }
+  calculateError();
+  calculate_PID();
+  motor_control();
+}
+
+
+// this function executes when data is requested from the master device
+void requestEvent(void)
+{
+  Wire.write(encoderCount);
+}
+
+
+// this function executes whenever data is received from the master device
+void receiveEvent(int howMany)
+{
+  if (howMany != 12) // for 2 16-bit numbers, the data will be 4 bytes long - anything else is an error
+  {
+    emptyBuffer();
+    return;
+  }
+
+  int16_t LOMOS = 0;
+  int16_t ROMOS = 0;
+  int16_t LMOS = 0;
+  int16_t RMOS = 0;
+  int16_t FL = 0;
+  int16_t FR = 0;
+
+  uint8_t LOMOS16_9 = WireSlave.read();  // receive bits 16 to 9 of x (one byte)
+  uint8_t LOMOS8_1 = WireSlave.read();   // receive bits 8 to 1 of x (one byte)
+  uint8_t ROMOS16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
+  uint8_t ROMOS8_1 = WireSlave.read();   // receive bits 8 to 1 of y (one byte)
+  uint8_t LMOS16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
+  uint8_t LMOS8_1 = WireSlave.read();   // receive bits 8 to 1 of y (one byte)
+  uint8_t RMOS16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
+  uint8_t RMOS8_1 = WireSlave.read();   // receive bits 8 to 1 of y (one byte)
+  uint8_t FL16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
+  uint8_t FL8_1 = WireSlave.read();   // receive bits 8 to 1 of y (one byte)
+  uint8_t FR16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
+  uint8_t FR8_1 = WireSlave.read();   // receive bits 8 to 1 of y (one byte)
+
+  LMOS = (LMOS16_9 << 8) | LMOS8_1; // combine the two bytes into a 16 bit number
+  RMOS = (RMOS16_9 << 8) | RMOS8_1; // combine the two bytes into a 16 bit number
+  LOMOS = (LOMOS16_9 << 8) | LOMOS8_1; // combine the two bytes into a 16 bit number
+  ROMOS = (ROMOS16_9 << 8) | ROMOS8_1; // combine the two bytes into a 16 bit number
+  FL = (FL16_9 << 8) | FL8_1; // combine the two bytes into a 16 bit number
+  FR = (FR16_9 << 8) | FR8_1; // combine the two bytes into a 16 bit number
+
+
+  char LMOSString[8];
+  dtostrf(LMOS, 1, 2, LMOSString);
+  client.publish("esp32/LMOS", LMOSString);
+  char RMOSString[8];
+  dtostrf(RMOS, 1, 2, RMOSString);
+  client.publish("esp32/RMOS", RMOSString);
+  char ROMOSString[8];
+  dtostrf(ROMOS, 1, 2, ROMOSString);
+  client.publish("esp32/ROMOS", ROMOSString);
+  char LOMOSString[8];
+  dtostrf(LOMOS, 1, 2, LOMOSString);
+  client.publish("esp32/LOMOS", LOMOSString);
+  char FLString[8];
+  dtostrf(FL, 1, 2, FLString);
+  client.publish("esp32/FL", FLString);
+  char FRString[8];
+  dtostrf(FR, 1, 2, FRString);
+  client.publish("esp32/FR", FRString);
+
+//  Serial.println(FL);
+//  Serial.println(FR);
+//  Serial.println(RMOS);
+//  Serial.println(LMOS);
+//  Serial.println(ROMOS);
+//  Serial.println(LOMOS);
+
+}
+
+void calculateError() {
+  numerator = (5  * (FR - FL)) + (3 * (ROMOS - LOMOS)) + (1 * (RMOS - LMOS));
+  denominator = (ROMOS + LOMOS + RMOS + FL + FR + LMOS);
+  error = numerator / denominator;
+  Serial.println(error);
+}
+
+void calculate_PID() {
+  P = error;
+  I = I + P;
+  D = error - previous_error;
+
+  PID_value = (Kp * P) + (Ki * I) + (Kd * D);
+
+  previous_error = error;
+  //Serial.println(PID_value);
+
+  char PID_valueString[8];
+  dtostrf(PID_value, 1, 2, PID_valueString);
+  client.publish("esp32/PIDValue", PID_valueString);
+}
+
+// function to clear the I2C buffer
+void emptyBuffer(void)
+{
+  Serial.println("Error: I2C Byte Size Mismatch");
+  while (WireSlave.available())
+  {
+    WireSlave.read();
+  }
+}
+void motor_control() {
+  int rightmotor_speed = initial_motor_speed + PID_value;
+  int leftmotor_speed = initial_motor_speed - PID_value;
+  constrain(leftmotor_speed, 0, max_speed);
+  constrain(rightmotor_speed, 0, max_speed);
+  runLeftMotor(leftMotor_speed);
+  runRightMotor(rightMotor_speed);
+}
+
+// function to run the right motor
+void runRightMotor(int rightMotor_speed) {
+  rightMotor_speed = constrain(rightMotor_speed, -255, 255);   // limits the speed value an 8 bit PWM value - the negative is handled below
+  if (rightMotor_speed < 0) {    // if the value is negative, run the motor 'backwards'
+    ledcWrite(pwmChannela, abs(rightMotor_speed));
+    ledcWrite(pwmChannelb, 0);   // abs() takes the absolute value i.e. removes the negative sign, as the PWM value has to be between 0 and 255
+  }
+
+  else {    // else run the motor 'forwards' or stop
+    ledcWrite(pwmChannela, 0);
+    ledcWrite(pwmChannelb, rightMotor_speed);
+  }
+}
+
+
+// function to run the left motor
+void runLeftMotor(int leftMotor_speed) {
+  leftMotor_speed = constrain(leftMotor_speed, -255, 255);   // limits the speed value an 8 bit PWM value - the negative is handled below
+  if (leftMotor_speed < 0) {    // if the value is negative, run the motor 'backwards'
+    ledcWrite(pwmChannelc, 0);
+    ledcWrite(pwmChanneld, abs(leftMotor_speed));   // abs() takes the absolute value i.e. removes the negative sign, as the PWM value has to be between 0 and 255
+  }
+
+  else {    // else run the motor 'forwards' or stop
+    ledcWrite(pwmChannelc, leftMotor_speed);
+    ledcWrite(pwmChanneld, 0);
+  }
+}
