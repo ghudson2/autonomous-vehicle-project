@@ -12,19 +12,30 @@
 // DO NOT modify or edit any of this code - for Session 2, the ESP32 code is provided for you
 // the only exception is modify the pin numbers for the motors (if the motors do not spin the correct way)
 
-// include libraries
+// Encoder library
 #include <ESP32Encoder.h>
 #include <Arduino.h>
+#include <Math.h>
+
+// I2C libraries
 #include <Wire.h>
 #include <WireSlave.h>
+
+// Wifi ESP libraries
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
 
-// IO21 & IO22 are the default I2C pins on the ESP32
+
+
+
+// I2C
 #define SDA_PIN 21
 #define SCL_PIN 22
 #define I2C_SLAVE_ADDR 0x04 // 4 in hexadecimal
+
+// Ultrasonic
+
 
 void receiveEvent(int howMany);
 void requestEvent();
@@ -33,14 +44,17 @@ void requestEvent();
 ESP32Encoder encoder;
 
 int encoderCount;
+
 // define the motor control pins
 #define PWMa 14
 #define PWMb 27
 #define PWMc 26
 #define PWMd 25
 
+// LED pin
 #define ledPin 12
 
+// Wifi address
 const char* ssid = "georgeHPI";                      //CHANGE ME
 const char* password = "password";              //CHANGE ME
 
@@ -53,7 +67,8 @@ PubSubClient client(espClient);
 long lastMsg = 0;
 char msg[50];
 int value = 0;
-// set up of PWM properties
+
+// set up of PWM properties for motors
 const int freq = 30000;
 const int resolution = 8;
 const int pwmChannela = 0;
@@ -61,7 +76,7 @@ const int pwmChannelb = 1;
 const int pwmChannelc = 2;
 const int pwmChanneld = 3;
 
-// set up of the motor speeds, set to 0 by default
+// PID CONTROL VARIABLES
 int leftMotor_speed = 0;
 int rightMotor_speed = 0;
 float Kp = 0;
@@ -69,18 +84,27 @@ float Ki = 0;
 float Kd = 0;
 float P = 0, I = 0, D = 0, PID_value = 0;
 float error = 0, previous_error = 0;
-int initial_motor_speed = 150;
+int initial_motor_speed;
 int max_speed = 255;
 float numerator, denominator;
+
+
+// Optical Sensor Values
 int LOMOS = 0, ROMOS = 0, FR = 0, FL = 0, LMOS = 0, RMOS = 0;
 
+int distanceU;
+
+// Encoder Variables
+float distance, PPI;
 
 void setup() {
+  // Wifi Setup
   Serial.begin(115200);
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
+// I2C Setup
   bool success = WireSlave.begin(SDA_PIN, SCL_PIN, I2C_SLAVE_ADDR);
   if (!success) {
     Serial.println("I2C Slave Init Failed");
@@ -90,11 +114,10 @@ void setup() {
   WireSlave.onReceive(receiveEvent);
   WireSlave.onRequest(requestEvent);
 
+
   // enable the weak pull up resistors
   ESP32Encoder::useInternalWeakPullResistors = UP;
 
-  // either change your connections to IO32 and IO33 or change the pin numbers in the code
-  // to change whether the count increments or decrements when turning in a particular direction,
   // switch the order of the pin numbers in attachHalQuad()
   encoder.attachHalfQuad(32, 33);                                                                 // <--------------
 
@@ -121,7 +144,9 @@ void setup() {
   pinMode(PWMb, OUTPUT);
   pinMode(PWMc, OUTPUT);
   pinMode(PWMd, OUTPUT);
+  // configure led pin as output
   pinMode(ledPin, OUTPUT);
+  
 }
 
 void setup_wifi() {
@@ -156,8 +181,8 @@ void callback(char* topic, byte* message, unsigned int length) {
   }
   Serial.println();
 
-  // Add your subscribed topics here i.e. statements to control GPIOs with MQTT
-  // --
+// SUBSCRIBED TOPICS
+  // LED button
   if (String(topic) == "esp32/LED") {
     if (messageTemp == "true") {
       digitalWrite(ledPin, HIGH);
@@ -166,15 +191,36 @@ void callback(char* topic, byte* message, unsigned int length) {
       digitalWrite(ledPin, LOW);
     }
   }
-  if (String(topic) == "esp32/kp") {
+// PID VALUE
+  // Kp value
+  if (String(topic) == "esp32/Kp") {
     Kp = messageTemp.toFloat();
+    Serial.println("Kp value is:");
+    Serial.println(Kp);
   }
-  if (String(topic) == "esp32/ki") {
+  // Ki value 
+  if (String(topic) == "esp32/Ki") {
     Ki = messageTemp.toFloat();
+    Serial.println("Ki value is:");
+    Serial.println(Ki);
   }
-  if (String(topic) == "esp32/kd") {
+  // Kd Value 
+  if (String(topic) == "esp32/Kd") {
     Kd = messageTemp.toFloat();
+    Serial.println("Kd value is:");
+    Serial.println(Kd);
   }
+// Motor Control
+  if (String(topic) == "esp32/stop") {
+    if (messageTemp == "true") {
+      initial_motor_speed = 0;
+    }
+    else if (messageTemp == "false") {
+      initial_motor_speed = 150;
+    }
+  }
+
+
 }
 
 void reconnect() {
@@ -185,13 +231,17 @@ void reconnect() {
     if (client.connect("ESP32Client")) {
       Serial.println("connected");
 
-      // Add your subscribe topics here
-      // --
-      client.subscribe("esp32/kp");
-      client.subscribe("esp32/ki");
-      client.subscribe("esp32/kd");
+// PID Variables subscribe 
+      client.subscribe("esp32/Kp");
+      client.subscribe("esp32/Ki");
+      client.subscribe("esp32/Kd");
+      
+// LED Subscribe
       client.subscribe("esp32/LED");
-      // --
+
+// Motor Control Subcribe
+      client.subscribe("esp32/stop");
+
 
     } else {
       Serial.print("failed, rc=");
@@ -204,24 +254,25 @@ void reconnect() {
 }
 
 void loop() {
+// Encoder Count and Distance
   encoderCount = encoder.getCount();
+  PPI = 24 / (2 * M_PI * 0.025);
+  distance = encoderCount / PPI;
+// Update I2C
   WireSlave.update();
 
   if (!client.connected()) {
     reconnect();
   }
   client.loop();
-
+// Send Encoder
   long now = millis();
-  if (now - lastMsg > 5000) {
+  if (now - lastMsg > 2500) {
     lastMsg = now;
     char encoderString[8];
-    dtostrf(encoderCount, 1, 2, encoderString);
+    dtostrf(distance, 1, 2, encoderString);
     client.publish("esp32/encoder", encoderString);
   }
-  calculateError();
-  calculate_PID();
-  motor_control();
 }
 
 
@@ -235,19 +286,22 @@ void requestEvent(void)
 // this function executes whenever data is received from the master device
 void receiveEvent(int howMany)
 {
-  if (howMany != 12) // for 2 16-bit numbers, the data will be 4 bytes long - anything else is an error
+  if (howMany != ) // 
   {
     emptyBuffer();
     return;
   }
-
+// Optical Sensor Values from Arduino
   int16_t LOMOS = 0;
   int16_t ROMOS = 0;
   int16_t LMOS = 0;
   int16_t RMOS = 0;
   int16_t FL = 0;
   int16_t FR = 0;
+// ultrasonic distance value
+  int16_t distanceU = 0;  
 
+// optical sensor values 
   uint8_t LOMOS16_9 = WireSlave.read();  // receive bits 16 to 9 of x (one byte)
   uint8_t LOMOS8_1 = WireSlave.read();   // receive bits 8 to 1 of x (one byte)
   uint8_t ROMOS16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
@@ -261,6 +315,11 @@ void receiveEvent(int howMany)
   uint8_t FR16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
   uint8_t FR8_1 = WireSlave.read();   // receive bits 8 to 1 of y (one byte)
 
+// ultrasonic distance values
+  uint8_t distanceU16_9 = WireSlave.read();   // receive bits 16 to 9 of y (one byte)
+  uint8_t distanceU8_1 = WireSlave.read();   // receive bits 8 to 1 of y (one byte)
+
+// optical sensor values
   LMOS = (LMOS16_9 << 8) | LMOS8_1; // combine the two bytes into a 16 bit number
   RMOS = (RMOS16_9 << 8) | RMOS8_1; // combine the two bytes into a 16 bit number
   LOMOS = (LOMOS16_9 << 8) | LOMOS8_1; // combine the two bytes into a 16 bit number
@@ -268,7 +327,9 @@ void receiveEvent(int howMany)
   FL = (FL16_9 << 8) | FL8_1; // combine the two bytes into a 16 bit number
   FR = (FR16_9 << 8) | FR8_1; // combine the two bytes into a 16 bit number
 
-
+// ultrasonic distance  
+  distanceU = (distanceU16_9 << 8) | distanceU8_1; // combine the two bytes into a 16 bit number
+// Publish Optical values to Node Red
   char LMOSString[8];
   dtostrf(LMOS, 1, 2, LMOSString);
   client.publish("esp32/LMOS", LMOSString);
@@ -288,36 +349,42 @@ void receiveEvent(int howMany)
   dtostrf(FR, 1, 2, FRString);
   client.publish("esp32/FR", FRString);
 
-//  Serial.println(FL);
-//  Serial.println(FR);
-//  Serial.println(RMOS);
-//  Serial.println(LMOS);
-//  Serial.println(ROMOS);
-//  Serial.println(LOMOS);
+// ultrasonic distance publish
+  char distanceUString[8];
+  dtostrf(distanceU, 1, 2, distanceUString);
+  client.publish("esp32/distanceU", distanceUString);
 
-}
-
-void calculateError() {
+// Weighted Average and Error Calculations
   numerator = (5  * (FR - FL)) + (3 * (ROMOS - LOMOS)) + (1 * (RMOS - LMOS));
   denominator = (ROMOS + LOMOS + RMOS + FL + FR + LMOS);
   error = numerator / denominator;
-  Serial.println(error);
-}
+  //Serial.println(error);
 
-void calculate_PID() {
+// PID Calculations
   P = error;
   I = I + P;
   D = error - previous_error;
-
+// PID Equation
   PID_value = (Kp * P) + (Ki * I) + (Kd * D);
 
   previous_error = error;
-  //Serial.println(PID_value);
-
+  Serial.println(PID_value);
+// Publish PID Value
   char PID_valueString[8];
   dtostrf(PID_value, 1, 2, PID_valueString);
   client.publish("esp32/PIDValue", PID_valueString);
+
+// Motor Control with PID Value
+  int rightMotor_speed = initial_motor_speed + PID_value;
+  int leftMotor_speed = initial_motor_speed - PID_value;
+  constrain(leftMotor_speed, 0, max_speed);
+  constrain(rightMotor_speed, 0, max_speed);
+  runLeftMotor(leftMotor_speed);
+  runRightMotor(rightMotor_speed);
 }
+
+
+
 
 // function to clear the I2C buffer
 void emptyBuffer(void)
@@ -327,14 +394,6 @@ void emptyBuffer(void)
   {
     WireSlave.read();
   }
-}
-void motor_control() {
-  int rightmotor_speed = initial_motor_speed + PID_value;
-  int leftmotor_speed = initial_motor_speed - PID_value;
-  constrain(leftmotor_speed, 0, max_speed);
-  constrain(rightmotor_speed, 0, max_speed);
-  runLeftMotor(leftMotor_speed);
-  runRightMotor(rightMotor_speed);
 }
 
 // function to run the right motor
