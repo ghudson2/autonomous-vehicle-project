@@ -1,7 +1,13 @@
+//libraries 
+
 #include <Wire.h>
 #include <WirePacker.h>
 #include <Arduino.h>
+
+// I2C communication
 #define I2C_SLAVE_ADDR 0x04
+
+// 
 int x, y, z, w, p, q;
 void setup() {
   Serial.begin(9600); //set Serial output baud rate
