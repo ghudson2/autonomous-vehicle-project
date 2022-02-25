@@ -70,10 +70,10 @@ void loop() {
   packer.write((byte)(w & 0x000000FF));           // second byte of w, containing the 8 LSB - bits 8 to 1
   packer.write((byte)((p & 0x0000FF00) >> 8));    // first byte of z, containing bits 16 to 9
   packer.write((byte)(p & 0x000000FF));           // second byte of z, containing the 8 LSB - bits 8 to 1
-  packer.write((byte)((q & 0x0000FF00) >> 8));    // first byte of w, containing bits 16 to 9
-  packer.write((byte)(q & 0x000000FF));           // second byte of w, containing the 8 LSB - bits 8 to 1
-  packer.write((byte)((distance & 0x0000FF00) >> 8));    // first byte of w, containing bits 16 to 9
-  packer.write((byte)(distance & 0x000000FF));           // second byte of w, containing the 8 LSB - bits 8 to 1
+  packer.write((byte)((q & 0x0000FF00) >> 8));    // first byte of q, containing bits 16 to 9
+  packer.write((byte)(q & 0x000000FF));           // second byte of q, containing the 8 LSB - bits 8 to 1
+  packer.write((byte)((distance & 0x0000FF00) >> 8));    // first byte of distance, containing bits 16 to 9
+  packer.write((byte)(distance & 0x000000FF));           // second byte of distance, containing the 8 LSB - bits 8 to 1
 
   packer.end();
 
