@@ -1,22 +1,33 @@
-//libraries 
-
+// Libraries
 #include <Wire.h>
 #include <WirePacker.h>
 #include <Arduino.h>
-
-// I2C communication
 #define I2C_SLAVE_ADDR 0x04
 
-// 
+// Ultrasonic pins
+#define trigPin 3
+#define echoPin 2
+
+
+// optical sensor values 
 int x, y, z, w, p, q;
+
+// ultrasonic values 
+long duration;
+int distance;
+
 void setup() {
   Serial.begin(9600); //set Serial output baud rate
   //For output format
   Wire.begin();
-
+// configure Ultrasonic pins for output
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
 }
 
 void loop() {
+
+ // can print values for debugging
   //  Serial.println(String(analogRead(A6)) + " = FarRight"); // potentiometer voltage
   //  Serial.println(String(analogRead(A0)) + " = Right of Middle"); // potentiometer voltage
   //  Serial.println(String(analogRead(A7)) + " = Right Middle"); // potentiometer voltage
@@ -24,19 +35,30 @@ void loop() {
   //  Serial.println(String(analogRead(A1)) + " = Left of Middle" ); // potentiometer voltage
   //  Serial.println(String(analogRead(A3)) + " = FarLeft"); // potentiometer voltage
 
+// read optical sensors
   x = analogRead(A1);
   y = analogRead(A0);
   z = analogRead(A2);
   w = analogRead(A7);
   p = analogRead(A3);
   q = analogRead(A6);
-  //Serial.println(w);
-  //Serial.println(z);
-  //Serial.println(y);
-  //Serial.println(x);
-
-
-
+ 
+// ultrasonic sensor
+   // Clears the trigPin condition
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    // Sets the trigPin HIGH (ACTIVE) for 10 microseconds
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    // Reads the echoPin, returns the sound wave travel time in microseconds
+    duration = pulseIn(echoPin, HIGH);
+    // Calculating the distance
+    distance = duration * 0.034 / 2;
+// can print value for debugging
+    //Serial.println(distance);
+    
+// sending all values through I2C communication
   WirePacker packer;
   packer.write((byte)((x & 0x0000FF00) >> 8));    // first byte of x, containing bits 16 to 9
   packer.write((byte)(x & 0x000000FF));           // second byte of x, containing the 8 LSB - bits 8 to 1
@@ -50,6 +72,9 @@ void loop() {
   packer.write((byte)(p & 0x000000FF));           // second byte of z, containing the 8 LSB - bits 8 to 1
   packer.write((byte)((q & 0x0000FF00) >> 8));    // first byte of w, containing bits 16 to 9
   packer.write((byte)(q & 0x000000FF));           // second byte of w, containing the 8 LSB - bits 8 to 1
+  packer.write((byte)((distance & 0x0000FF00) >> 8));    // first byte of w, containing bits 16 to 9
+  packer.write((byte)(distance & 0x000000FF));           // second byte of w, containing the 8 LSB - bits 8 to 1
+
   packer.end();
 
   Wire.beginTransmission(I2C_SLAVE_ADDR); // transmit to device #4
