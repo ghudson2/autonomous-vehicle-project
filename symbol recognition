@@ -1,0 +1,152 @@
+import time
+import cv2
+from PIL import Image
+import numpy as np
+
+#difference variable
+minSquareArea = 5000
+
+#frame width and Height
+w = 640
+h = 480
+
+#reference image display name and original name
+ReferenceImages = ["C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\BlueShortCut.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\DistanceMeasurement.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\FollowBlack.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\GreenShortCut.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\IMUMeasurement.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\RedShortCut.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\ShapeCounter.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\StopLight.jpg", "C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\YellowShortCut.jpg"]
+ReferenceTitles = ["Blue ShortCut", "Distance Measurement", "Follow Black", "GreenShortCut", "IMUMeasurement", "RedShortCut", "ShapeCounter", "StopLight", "YellowShortCut"]
+Templates = []
+
+for k in ReferenceImages:
+    Templates.append(np.array(Image.open(k).convert('L'), 'uint8'))
+
+def readRefImages():
+    for count in range(9):
+        imagine = cv2.imread(ReferenceImages[count])
+        image = cv2.cvtColor(imagine, cv2.COLOR_BGR2GRAY)
+        Templates[count] = cv2.resize(image,(int(w/2),int(h/2)),interpolation = cv2.INTER_AREA)
+        
+def order_points(pts):
+    rect = np.zeros((4, 2), dtype = "float32")
+
+    s = pts.sum(axis = 1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+
+    diff = np.diff(pts, axis = 1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
+
+    return rect
+
+def four_point_transform(image, pts):
+
+    rect = order_points(pts)
+    (tl, tr, br, bl) = rect
+
+    maxWidth = int(w/2)
+    maxHeight = int(h/2)
+
+    dst = np.array([
+        [0,0],
+        [maxWidth - 1, 0],
+        [maxWidth - 1, maxHeight - 1],
+        [0, maxHeight - 1]], dtype = "float32")
+    matrix = cv2.getPerspectiveTransform(rect, dst)
+    warped = cv2.warpPerspective(image, matrix, (maxWidth, maxHeight))
+
+    return warped
+
+def resize_and_threshold_warped(image):
+
+    warped_new_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    blur = cv2.GaussianBlur(warped_new_gray,(5,5),0)
+
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(blur)
+    threshold = (min_val + max_val)/2
+
+    ret, warped_processed = cv2.threshold(warped_new_gray, threshold, 255, cv2.THRESH_BINARY)
+
+    return warped_processed
+
+def main():
+    font = cv2.FONT_HERSHEY_SCRIPT_SIMPLEX
+    #cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("C:\\Users\\georg\\Desktop\\Symbols\\sym_Trim_1.mkv")
+    #Original = cv2.imread("C:\\Users\\georg\\Desktop\\Symbols\\png2jpg\\ShapeCounter.jpg")
+    #print(cap)
+    readRefImages()
+    
+    while (True):
+        ret, Original = cap.read()
+        if not ret:
+            print("Can't receive frame (stream end?). Exiting ...")
+            break
+        #print(Original)
+        gray = cv2.cvtColor(Original,cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray,(3,3),0)
+
+        edges = cv2.Canny(blurred,100,200)
+
+        contours, hierarchy= cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        for cnt in contours:
+            approx = cv2.approxPolyDP(cnt, 0.01*cv2.arcLength(cnt,True),True)
+
+            if len(approx)==4:
+                area = cv2.contourArea(approx)
+
+                if area > minSquareArea:
+                    cv2.drawContours(Original, [approx],0,(0,0,255),2)
+                    warped = four_point_transform(Original, approx.reshape(4,2))
+                    warped_eq = resize_and_threshold_warped(warped)
+
+                    i=0
+                    while(i<9):
+
+                        res = cv2.matchTemplate(warped_eq, Templates[i], cv2.TM_CCOEFF_NORMED)
+                        if res>0.95:
+                            if i==8:
+                                t=0
+                                s=-1
+                                c=0
+                                cont,h= cv2.findContours(warped_eq,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+                                for cc in cont:
+                                    app = cv2.approxPolyDP(cc, 0.04 * cv2.arcLength(cc, True),
+                                                           True)
+                                    cv2.drawContours(warped_eq, [app], 0, (0,0,255), 1)
+                                    x = app.ravel()[0]
+                                    y = app.ravel()[1]
+                                    print(len(app))
+                                    if len(app)==3:
+                                        t = t+1
+                                        cv2.putText(warped_eq, "Triangle", (x,y), font, 0.3, (0))
+                                    elif len(app)==4:
+                                        s = s+1
+                                        cv2.putText(warped_eq, "Square", (x,y), font, 0.3, (0))
+                                    else:
+                                        c = c+1
+                                        cv2.putText(warped_eq, "Circle", (x,y), font, 0.3, (0))
+
+                                cv2.imshow("count", warped_eq)
+                                print("Number of square", s)
+                                print("Number of circle", c)
+                                print("Number of triangle", t)
+
+                            print(ReferenceTitles[i])
+
+                            cv2.putText(Original, ReferenceTitles[i], tuple(approx.reshape(4,2)[0]), font, 1, (255,0,255), 2, cv2.LINE_AA)
+                            break;
+                        i = i+1
+                    #cv2.imshow("contours", edges)
+        cv2.imshow("main Frame", Original)
+
+        k = cv2.waitKey(1) & 0xFF
+        if k ==27:
+            break
+        
+    cap.release()
+    cv2.destroyAllWindows()
+
+    
+main()
