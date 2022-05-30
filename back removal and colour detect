@@ -1,0 +1,109 @@
+import numpy as np
+import cv2
+
+cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+
+#Load the Image
+imgo = cv2.imread(r'D:\raspberry pi\computer vision\OpenCV inc CodeBlocks\OpenCV Task\Images\GreenApple.bmp')
+height, width = imgo.shape[:2]
+
+
+#Create a mask holder
+mask = np.zeros(imgo.shape[:2],np.uint8)
+
+#Grab Cut the object
+bgdModel = np.zeros((1,65),np.float64)
+fgdModel = np.zeros((1,65),np.float64)
+
+#Hard Coding the Rect The object must lie within this rect.
+rect = (10,10,width-30,height-30)
+cv2.grabCut(imgo,mask,rect,bgdModel,fgdModel,5,cv2.GC_INIT_WITH_RECT)
+mask = np.where((mask==2)|(mask==0),0,1).astype('uint8')
+img1 = imgo*mask[:,:,np.newaxis]
+
+# minimum value of brown pixel in BGR order -> royal blue
+BLUE_MIN = np.array([102,35,0], np.uint8)
+# maximum value of brown pixel in BGR order -> lavender blue
+BLUE_MAX = np.array([204,204,255], np.uint8)
+
+# minimum value of brown pixel in BGR order -> 
+RED_MIN = np.array([28,28,112], np.uint8)
+# maximum value of brown pixel in BGR order -> PASTEL RED
+RED_MAX = np.array([97,105,255], np.uint8)
+
+# minimum value of brown pixel in BGR order -> dark olive green
+GREEN_MIN = np.array([47,107,85], np.uint8)
+# maximum value of brown pixel in BGR order -> inchworm
+GREEN_MAX = np.array([93,236,178], np.uint8)
+
+# minimum value of brown pixel in BGR order -> dark olive green
+WHITE_MIN = np.array([237,234,222], np.uint8)
+# maximum value of brown pixel in BGR order -> inchworm
+WHITE_MAX = np.array([255,255,255], np.uint8)
+
+# minimum value of brown pixel in BGR order -> dark olive green
+BLACK_MIN = np.array([0,0,0], np.uint8)
+# maximum value of brown pixel in BGR order -> inchworm
+BLACK_MAX = np.array([53,57,53], np.uint8)
+
+dimensions = img1.shape
+h = img1.shape[0]
+w = img1.shape[1]
+channels = img1.shape[2]
+
+#print('Image Dimension    : ',dimensions)
+#print('Image Height       : ',height)
+#print('Image Width        : ',width)
+#print('Number of Channels : ',channels)
+
+total_pixels = h * w
+print('Total pixels: ',total_pixels)
+
+dstB = cv2.inRange(img1, BLUE_MIN, BLUE_MAX)
+no_blue = cv2.countNonZero(dstB)
+print('The number of BLUE pixels is: ' + str(no_blue))
+
+dstR = cv2.inRange(img1, RED_MIN, RED_MAX)
+no_red = cv2.countNonZero(dstR)
+print('The number of RED pixels is: ' + str(no_red))
+
+dstG = cv2.inRange(img1, GREEN_MIN, GREEN_MAX)
+no_green = cv2.countNonZero(dstG)
+print('The number of GREEN pixels is: ' + str(no_green))
+
+dstW = cv2.inRange(img1, WHITE_MIN, WHITE_MAX)
+no_white = cv2.countNonZero(dstW)
+print('The number of WHITE pixels is: ' + str(no_white))
+
+dstB = cv2.inRange(img1, BLACK_MIN, BLACK_MAX)
+no_black = cv2.countNonZero(dstB)
+print('The number of BLACK pixels is: ' + str(no_black))
+
+ratio_blue = (no_blue/total_pixels) * 100
+ratio_red = (no_red/total_pixels) * 100
+ratio_green = (no_green/total_pixels) * 100
+
+if(ratio_blue>ratio_red and ratio_blue>ratio_green):
+    print("The object is blue")
+elif (ratio_red>ratio_blue and ratio_red>ratio_green):
+    print("The object is red")
+elif(ratio_green>ratio_blue and ratio_green>ratio_red):
+    print("The object is green")
+
+#Get the background
+background = imgo - img1
+
+#Change all pixels in the background that are not black to white
+background[np.where((background > [0,0,0]).all(axis = 2))] = [255,255,255]
+
+#Add the background and the image
+final = background + img1
+
+#To be done - Smoothening the edges
+
+cv2.imshow('image', final )
+
+k = cv2.waitKey(0)
+
+if k==27:
+    cv2.destroyAllWindows()
